@@ -11,6 +11,10 @@ from tools.rollback import rollback_phase
 
 
 def test_circuit_breaker_triggers_on_accuracy_drop(tmp_path):
+    """
+    Tests that the CircuitBreaker correctly triggers a 'stop' action when
+    the accuracy metric drops below the configured threshold.
+    """
     config = CBConfig(window_steps=3, max_perplexity_delta=0.5, min_accuracy=0.6, hard_stop=True)
     breaker = CircuitBreaker(config)
 
@@ -22,36 +26,49 @@ def test_circuit_breaker_triggers_on_accuracy_drop(tmp_path):
     assert "accuracy" in result["reason"]
 
 
-def test_schema_validator_catches_missing_fields():
+def test_schema_validator_catches_invalid_field():
+    """
+    Tests that the SchemaValidator correctly identifies a payload that
+    violates the schema, specifically an enum constraint.
+    """
     jsonschema = pytest.importorskip("jsonschema")
     validator = SchemaValidator()
+    # This payload is based on specs/cockpit_schema.json
     payload = {
-        "schemaVersion": "v1.0",
-        "runId": "123e4567-e89b-12d3-a456-426614174000",
-        "timestamp": "2024-05-26T18:42:00Z",
         "phase": "P1",
         "status": "running",
-        "qualityMetrics": {"perplexity": 5.0, "accuracy": 0.8, "trend": "stable"},
-        "resourceUsage": {"gpuMemoryGb": 10, "cpuMemoryGb": 8, "throughputTokensPerSec": 120},
-        "humanContract": {"version": "1.0.0", "authorizedBy": "Daniel Ramos", "signed": True, "signoff": "I accept responsibility for this run"},
-        "actions": {
-            "approve": {"enabled": True},
-            "abort": {"enabled": False},
-            "rollback": {"enabled": True, "targetPhase": "P0", "checkpoint": "checkpoints/phase_0"}
+        "qualityMetrics": {
+            "perplexitySlope": 0.01,
+            "accuracy": 0.85,
+            "canonicalSentence": "All systems nominal."
         },
-        "alerts": [],
+        "resourceUsage": {
+            "vramUsedGb": 10.2,
+            "estimatedTimeLeftMin": 30
+        },
+        "humanContract": {
+            "version": "1.0",
+            "guaranteesMet": True,
+            "responseWindowSec": 120
+        },
+        "actions": ["Approve", "Abort"],
+        "traceId": "trace-123"
     }
-    # missing required field (statusMessage optional? not part) but actions rollback missing lastTriggered? not required.
-    # We'll remove required field qualityMetrics? Already there.
-    # To trigger error remove humanContract signoff? but required. Keep but set to wrong string.
-    payload["humanContract"]["signoff"] = "I do not accept"
 
-    result = validator.validate(payload)
+    # Introduce an invalid value for the 'status' field
+    invalid_payload = payload.copy()
+    invalid_payload["status"] = "invalid_status"
+
+    result = validator.validate(invalid_payload)
     assert not result.ok
-    assert any("signoff" in msg for msg in result.errors)
+    assert any("'invalid_status' is not one of" in msg for msg in result.errors)
 
 
 def test_voice_priority_preempts_visual():
+    """
+    Tests that the CognitiveLoadThrottle correctly handles modality preemption,
+    ensuring a higher-priority VOICE alert can take over from a VISUAL one.
+    """
     throttle = CognitiveLoadThrottle()
     accepted, _ = throttle.request(Alert(Modality.VISUAL, "visual alert"))
     assert accepted
@@ -63,6 +80,11 @@ def test_voice_priority_preempts_visual():
 
 
 def test_rollback_phase_restores_checkpoint(tmp_path):
+    """
+    Tests the end-to-end rollback functionality. It ensures that calling
+    rollback_phase correctly restores the specified checkpoint, cleans up
+    adapters, and updates the run's metadata.
+    """
     run_dir = tmp_path / "run"
     checkpoints_dir = run_dir / "checkpoints"
     target_phase_dir = checkpoints_dir / "phase_1"
@@ -93,6 +115,10 @@ def test_rollback_phase_restores_checkpoint(tmp_path):
 
 
 def test_profile_recommender_returns_template(monkeypatch):
+    """
+    Tests that the ProfileRecommender suggests a suitable scaling profile
+    based on the use case and mocked hardware with sufficient VRAM.
+    """
     recommender = ProfileRecommender()
 
     class DummyHardware:

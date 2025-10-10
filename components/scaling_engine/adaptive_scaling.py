@@ -13,8 +13,13 @@ from typing import Dict, Optional
 
 @dataclass
 class HardwareProfile:
-    """Lightweight description of the runtime environment."""
+    """A lightweight description of the runtime environment.
 
+    Attributes:
+        total_vram_gb (float): The total available VRAM across all GPUs in GB.
+        gpu_count (int): The number of GPUs available.
+        cpu_mem_gb (float): The total available CPU memory in GB.
+    """
     total_vram_gb: float
     gpu_count: int = 1
     cpu_mem_gb: float = 32.0
@@ -22,17 +27,31 @@ class HardwareProfile:
 
 @dataclass
 class ScalingTargets:
-    """Desired capacity and context goals."""
+    """Specifies the desired capacity and context goals for scaling.
 
-    base_params_b: float  # billions of parameters
+    Attributes:
+        base_params_b (float): The number of parameters in the base model, in billions.
+        target_multiplier (float): The desired increase in model capacity (e.g., 2.0 for 2x).
+        context_multiplier (float): The desired increase in context length (e.g., 2.0 for 2x).
+    """
+    base_params_b: float
     target_multiplier: float = 1.0
     context_multiplier: float = 1.0
 
 
 @dataclass
 class LoRAConfigSuggestion:
-    """Suggested configuration values for PEFT injection."""
+    """A suggested LoRA (Low-Rank Adaptation) configuration.
 
+    This data class holds the parameters for PEFT (Parameter-Efficient Fine-Tuning)
+    injection, including rank, alpha, dropout, and whether to use QLoRA.
+
+    Attributes:
+        rank (int): The rank of the LoRA matrices.
+        alpha (int): The scaling factor for the LoRA adaptation.
+        dropout (float): The dropout rate to apply to the LoRA layers.
+        use_qlora (bool): Whether to use QLoRA for 4-bit quantization.
+    """
     rank: int
     alpha: int
     dropout: float
@@ -40,6 +59,16 @@ class LoRAConfigSuggestion:
 
 
 def _normalise_multiplier(multiplier: float, lower: float, upper: float) -> float:
+    """Clamps a multiplier value within a specified range.
+
+    Args:
+        multiplier (float): The value to clamp.
+        lower (float): The minimum allowed value.
+        upper (float): The maximum allowed value.
+
+    Returns:
+        float: The clamped value.
+    """
     return max(lower, min(upper, multiplier))
 
 
@@ -48,8 +77,20 @@ def calculate_optimal_lora_rank(
     target_capacity: float,
     hardware_constraints: Dict[str, float],
 ) -> int:
-    """Qwen's original heuristic packaged for backwards compatibility."""
+    """Calculates an optimal LoRA rank based on a heuristic.
 
+    This function provides backward compatibility with Qwen's original heuristic
+    for determining LoRA rank.
+
+    Args:
+        base_model_params (float): The base model's parameters in billions.
+        target_capacity (float): The desired target capacity.
+        hardware_constraints (Dict[str, float]): A dictionary with hardware info,
+                                                 like 'available_memory'.
+
+    Returns:
+        int: The calculated optimal LoRA rank.
+    """
     base_rank = min(32, max(8, int(base_model_params * 0.01)))
     adjustment_factor = min(1.5, target_capacity / base_model_params)
     hardware_factor = min(1.0, hardware_constraints.get("available_memory", 16.0) / 16.0)
@@ -63,13 +104,22 @@ def suggest_lora_config(
     prefer_low_memory: bool = False,
     dropout_override: Optional[float] = None,
 ) -> LoRAConfigSuggestion:
-    """Generate a LoRA configuration suggestion.
+    """Generates a LoRA configuration suggestion based on targets and hardware.
 
     The heuristic expands on GLM's proposal by factoring in both parameter and
-    context multipliers.  When context length grows aggressively we temper the
+    context multipliers. When context length grows aggressively, it tempers the
     rank to keep memory requirements reasonable.
-    """
 
+    Args:
+        targets (ScalingTargets): The desired scaling goals.
+        hardware (HardwareProfile): The detected hardware profile.
+        prefer_low_memory (bool): If True, prioritizes memory-saving options.
+        dropout_override (Optional[float]): An optional value to override the
+                                             calculated dropout.
+
+    Returns:
+        LoRAConfigSuggestion: The suggested LoRA configuration.
+    """
     # Effective multiplier blends parameter and context ambitions.
     capacity_multiplier = _normalise_multiplier(targets.target_multiplier, 1.0, 4.0)
     context_pressure = _normalise_multiplier(targets.context_multiplier, 1.0, 8.0)
