@@ -1,0 +1,151 @@
+# Scaler Wizard TransformerLab Plugin Interface
+
+plugin:
+  id: scaler_wizard
+  version: 0.1.0
+  frontend:
+    entry_component: ScalerWizardTab
+    routes:
+      - path: /scaler-wizard
+        label: Scaler Wizard
+        permissions: [models:write, datasets:read]
+  backend:
+    task_runner: python
+    entrypoint: scaler_wizard.runner:run_job
+    environment:
+      required_packages:
+        - transformers>=4.40.0
+        - peft>=0.11.0
+        - datasets>=2.18.0
+        - accelerate>=0.30.0
+        - bitsandbytes>=0.43.0
+        - flash-attn>=2.5.6
+
+# Job submission schema aligns with the cockpit JSON discussed in the chain.
+job_schema:
+  type: object
+  required: [model, scaling, dataset, safety]
+  properties:
+    model:
+      type: object
+      required: [base_model, tokenizer, runtime]
+      properties:
+        base_model:
+          type: string
+          description: Hugging Face model id or local path.
+        tokenizer:
+          type: string
+          description: Tokenizer identifier; defaults to base_model.
+        runtime:
+          type: string
+          enum: [auto, cpu, single_gpu, multi_gpu, remote]
+    scaling:
+      type: object
+      properties:
+        strategy:
+          type: string
+          enum: [lora, qlora, prefix_tuning]
+          default: lora
+        adaptive_rank:
+          type: boolean
+          default: true
+        target_context:
+          type: integer
+          minimum: 2048
+          maximum: 131072
+        context_schedule:
+          type: array
+          items:
+            type: integer
+          description: Optional explicit progression for progressive expansion.
+        template:
+          type: string
+          enum: [balanced_scaling, max_context, max_parameters]
+    contract:
+      type: object
+      required: [version, authorized_by, signoff]
+      properties:
+        version:
+          type: string
+          description: Must match runtime `contract_version`.
+        authorized_by:
+          type: string
+        signoff:
+          type: string
+          enum: ["I accept responsibility for this run"]
+        approved_at:
+          type: string
+          format: date-time
+        rollback_plan:
+          type: string
+          description: Checkpoint path to restore on abort.
+        session_id:
+          type: string
+    alerts:
+      type: object
+      properties:
+        enable_voice:
+          type: boolean
+          default: true
+        enable_visual:
+          type: boolean
+          default: true
+        enable_telegram:
+          type: boolean
+          default: true
+        canonical_sentence:
+          type: string
+          description: Canonical message mirrored by all modalities.
+    voice:
+      type: object
+      properties:
+        language:
+          type: string
+          default: en-US
+        persona:
+          type: string
+          description: Preferred voice name passed to the browser speech engine.
+    dataset:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [huggingface_hub, local_upload, synthetic]
+        identifier:
+          type: string
+          description: HF dataset id or local file reference.
+        split:
+          type: string
+          default: train
+        weak_supervision:
+          type: boolean
+          default: false
+    safety:
+      type: object
+      properties:
+        circuit_breaker:
+          type: object
+          properties:
+            window_steps:
+              type: integer
+              minimum: 5
+              maximum: 100
+            max_perplexity_delta:
+              type: number
+            min_accuracy:
+              type: number
+              minimum: 0
+              maximum: 1
+            hard_stop:
+              type: boolean
+              default: true
+        telemetry:
+          type: object
+          properties:
+            emit_metrics:
+              type: boolean
+              default: true
+            destination:
+              type: string
+              enum: [local, http, websocket]
+              default: local

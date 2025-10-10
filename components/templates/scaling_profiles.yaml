@@ -1,0 +1,49 @@
+templates:
+  balanced_scaling:
+    description: Balanced approach for general-purpose instruction tuning.
+    lora_rank: 16
+    lora_alpha: 48
+    context_multiplier: 4
+    use_distillation: true
+    telemetry_profile: standard
+    min_vram_gb: 12
+  max_context:
+    description: Maximise context length for long-form and RAG workloads.
+    lora_rank: 12
+    lora_alpha: 32
+    context_multiplier: 16
+    use_distillation: false
+    telemetry_profile: high_resolution
+    min_vram_gb: 20
+  max_parameters:
+    description: Prioritise effective parameter growth for complex reasoning.
+    lora_rank: 32
+    lora_alpha: 96
+    context_multiplier: 2
+    use_distillation: true
+    telemetry_profile: standard
+    min_vram_gb: 18
+  budget_context:
+    description: Conservative settings for GPUs with limited VRAM.
+    lora_rank: 8
+    lora_alpha: 24
+    context_multiplier: 2
+    use_distillation: false
+    telemetry_profile: standard
+    min_vram_gb: 8
+  reasoning_boost:
+    description: Emphasise parameter growth for analytical tasks.
+    lora_rank: 28
+    lora_alpha: 84
+    context_multiplier: 3
+    use_distillation: true
+    telemetry_profile: detailed
+    min_vram_gb: 16
+  creative_fusion:
+    description: Trade some efficiency for stylistic flexibility and fusion.
+    lora_rank: 20
+    lora_alpha: 60
+    context_multiplier: 6
+    use_distillation: true
+    telemetry_profile: exploratory
+    min_vram_gb: 24

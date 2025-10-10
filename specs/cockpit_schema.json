@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Scaler Wizard Cockpit Telemetry",
+  "description": "Canonical payload exchanged between backend telemetry stream and cockpit dashboard",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "timestamp",
+    "phase",
+    "status",
+    "qualityMetrics",
+    "resourceUsage",
+    "humanContract",
+    "actions",
+    "alerts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^v[0-9]+\\.[0-9]+$"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["P0", "P1", "P2", "P3", "P4"]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "initializing",
+        "running",
+        "paused",
+        "warning",
+        "stopped",
+        "completed",
+        "failed"
+      ]
+    },
+    "statusMessage": {
+      "type": "string"
+    },
+    "qualityMetrics": {
+      "type": "object",
+      "required": ["perplexity", "accuracy", "trend"],
+      "properties": {
+        "perplexity": {
+          "type": "number",
+          "minimum": 0
+        },
+        "accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "trend": {
+          "type": "string",
+          "enum": ["improving", "stable", "degrading"]
+        },
+        "window": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "resourceUsage": {
+      "type": "object",
+      "required": ["gpuMemoryGb", "cpuMemoryGb", "throughputTokensPerSec"],
+      "properties": {
+        "gpuMemoryGb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cpuMemoryGb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "throughputTokensPerSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gpuCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "temperatureC": {
+          "type": "number"
+        }
+      }
+    },
+    "humanContract": {
+      "type": "object",
+      "required": ["version", "authorizedBy", "signed", "signoff"],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "authorizedBy": {
+          "type": "string"
+        },
+        "signed": {
+          "type": "boolean"
+        },
+        "signoff": {
+          "type": "string",
+          "enum": ["I accept responsibility for this run"]
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rollbackPlan": {
+          "type": "string"
+        }
+      }
+    },
+    "actions": {
+      "type": "object",
+      "required": ["approve", "abort", "rollback"],
+      "properties": {
+        "approve": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "lastTriggeredAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "abort": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "lastTriggeredAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "rollback": {
+          "type": "object",
+          "required": ["enabled", "targetPhase", "checkpoint"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "targetPhase": { "type": "string" },
+            "checkpoint": { "type": "string" },
+            "lastTriggeredAt": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "modality", "severity", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "modality": {
+            "type": "string",
+            "enum": ["voice", "visual", "telegram"]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warning", "critical"]
+          },
+          "message": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "properties": {
+        "language": { "type": "string" },
+        "persona": { "type": "string" },
+        "queueDepth": { "type": "integer", "minimum": 0 },
+        "speaking": { "type": "boolean" }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "metricsPath": { "type": "string" },
+        "telegramPath": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}
