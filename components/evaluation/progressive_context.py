@@ -13,6 +13,13 @@ from typing import Iterable, List, Sequence
 
 @dataclass
 class ContextStep:
+    """Represents a single step in the progressive context expansion schedule.
+
+    Attributes:
+        length (int): The context length for this step.
+        probes (Sequence[str]): A sequence of evaluation probe names to run at this step.
+        notes (str): Optional notes for this step, e.g., 'base context checkpoint'.
+    """
     length: int
     probes: Sequence[str] = field(default_factory=lambda: ["synthetic_longform"])
     notes: str = ""
@@ -23,12 +30,27 @@ def build_context_schedule(
     target_context: int,
     explicit_schedule: Iterable[int] | None = None,
 ) -> List[ContextStep]:
-    """Compute a monotonic schedule from base to target context.
+    """Computes a monotonic schedule of context lengths for progressive expansion.
 
-    If `explicit_schedule` is provided it is validated and wrapped as steps.
-    Otherwise the schedule grows exponentially up to the target.
+    This function generates a series of `ContextStep` objects, starting from a
+    `base_context` and moving towards a `target_context`. The schedule can either
+    be explicitly provided or generated automatically with exponential growth.
+
+    Args:
+        base_context (int): The starting context length.
+        target_context (int): The final desired context length.
+        explicit_schedule (Iterable[int] | None): An optional, ordered list of
+                                                  context lengths to use. If not
+                                                  provided, the schedule grows
+                                                  exponentially.
+
+    Returns:
+        List[ContextStep]: A list of context steps, including evaluation probes.
+
+    Raises:
+        ValueError: If the `explicit_schedule` contains values below the
+                    `base_context`.
     """
-
     if explicit_schedule:
         ordered = sorted(set(explicit_schedule))
         if ordered[0] < base_context:
@@ -40,10 +62,10 @@ def build_context_schedule(
         lengths: List[int] = []
         current = max(base_context, 1024)
         while current < target_context:
-            current = min(target_context, current * 2)
             lengths.append(current)
-        if not lengths or lengths[-1] != target_context:
-            lengths.append(target_context)
+            current *= 2
+        if not lengths or lengths[-1] < target_context:
+             lengths.append(target_context)
 
     steps = [ContextStep(length=base_context, notes="base context checkpoint")]
     for length in lengths:
@@ -62,12 +84,20 @@ def should_halt(
     threshold: float,
     window: int = 3,
 ) -> bool:
-    """Determine if progressive expansion should stop based on score degradation.
+    """Determines if progressive expansion should halt due to score degradation.
 
-    Scores are assumed to be higher-is-better (e.g., accuracy).  When the moving
-    average over `window` drops below `threshold`, we signal a halt.
+    This function checks if the moving average of the last `window` scores has
+    dropped below a specified `threshold`. It's used as a circuit breaker
+    to stop context expansion when model performance degrades.
+
+    Args:
+        scores (List[float]): A list of evaluation scores, where higher is better.
+        threshold (float): The minimum acceptable score for the moving average.
+        window (int): The number of recent scores to consider for the moving average.
+
+    Returns:
+        bool: True if the expansion should be halted, False otherwise.
     """
-
     if len(scores) < window:
         return False
     recent = scores[-window:]
