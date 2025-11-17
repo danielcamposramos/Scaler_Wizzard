@@ -36,6 +36,7 @@ Scaler_Wizzard/
 ├── specs/                  # Formal specifications and schemas
 │   ├── cockpit_schema.json       # Telemetry payload schema
 │   ├── plugin_interface.yaml     # TransformerLab plugin spec
+│   ├── scaling_engine.md         # Scaling engine architecture spec
 │   └── cli_prototype.md          # CLI specification
 ├── tools/                  # Standalone utility scripts
 │   └── rollback.py         # Checkpoint rollback utility
@@ -748,6 +749,7 @@ When modifying existing components:
 
 ### Internal Documentation
 - Architecture overview: `docs/architecture/scaler_wizard_overview.md`
+- Scaling engine specification: `specs/scaling_engine.md`
 - Multi-Vibe process: `docs/process/multi_vibe_chain.md`
 - Roadmap: `docs/backlog/roadmap.md`
 - Safety specification: `docs/architecture/safety.md`
@@ -763,7 +765,7 @@ When modifying existing components:
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: 2025-11-16
+**Document Version**: 1.0.1
+**Last Updated**: 2025-11-17
 **Maintained By**: Multi-Vibe Code In Chain Swarm
 **Questions**: Document open questions in code comments and surface to Daniel Ramos for swarm discussion
