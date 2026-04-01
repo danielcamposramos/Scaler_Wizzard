@@ -16,6 +16,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from dataset_curator import MultiDomainTRMCDataset
 from trmc_model import TRMCModel
 
 
@@ -76,22 +77,23 @@ def train_trmc():
 
     # 1. Hyperparameters
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    vocab_size = 32
-    seq_len = 16
-    hidden_dim = 128
-    num_heads = 4
+    vocab_size = 32000
+    seq_len = 128
+    hidden_dim = 256
+    num_heads = 8
     num_experts = 8
-    expert_dim = 256
+    expert_dim = 1024
     num_iterations = 8
     batch_size = 64
-    epochs = 2
-    learning_rate = 1e-3
-    contrastive_weight = 0.1
+    epochs = 50
+    learning_rate = 1e-4
+    contrastive_weight = 0.2
 
     print(f"Training on: {device}")
 
     # 2. Dataset and DataLoader
-    dataset = LogicPuzzlesDataset(size=500, seq_len=seq_len, vocab_size=vocab_size)
+    # Use MultiDomainTRMCDataset for more robust training simulation
+    dataset = MultiDomainTRMCDataset(size=5000, seq_len=seq_len, vocab_size=vocab_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # 3. Model, Optimizer, and Loss
@@ -102,8 +104,7 @@ def train_trmc():
         num_experts=num_experts,
         expert_dim=expert_dim,
         num_iterations=num_iterations,
-        max_seq_len=seq_len,
-        matryoshka_dims=[32, 64, 128]
+        max_seq_len=seq_len
     ).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -119,8 +120,8 @@ def train_trmc():
         for batch_idx, (x, y_pos, y_negs) in enumerate(progress_bar):
             x, y_pos, y_negs = x.to(device), y_pos.to(device), y_negs.to(device)
 
-            # Optional: Simulate vision input for multi-modal training
-            # images: (B, 3, 32, 32)
+            # Optional: Simulate vision input for multi-modal training (32x32 patches)
+            # In real training, these would come from the dataset
             images = torch.randn(x.shape[0], 3, 32, 32).to(device)
 
             optimizer.zero_grad()

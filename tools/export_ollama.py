@@ -19,13 +19,14 @@ def create_modelfile(gguf_path: str, modelfile_path: str):
         gguf_path (str): Path to the converted GGUF file.
         modelfile_path (str): Path where the Modelfile should be saved.
     """
+    # NOTE: 'architecture' parameter is not supported directly in Modelfile
+    # but we've spoofed it in the GGUF itself.
     content = f"""# TRMC Modelfile
 # Generated for Ollama integration
 
 FROM ./{os.path.basename(gguf_path)}
 
 # TRMC Specific Parameters
-PARAMETER architecture trmc
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
 PARAMETER stop "<|endoftext|>"
@@ -56,13 +57,14 @@ def main():
         default="checkpoints/ollama",
         help="Directory to save the export artifacts"
     )
-    # Architectural parameters
-    parser.add_argument("--hidden_dim", type=int, default=128)
-    parser.add_argument("--num_heads", type=int, default=4)
+    # Architectural parameters (defaulting to updated TRMC specs)
+    parser.add_argument("--hidden_dim", type=int, default=256)
+    parser.add_argument("--num_heads", type=int, default=8)
     parser.add_argument("--num_experts", type=int, default=8)
     parser.add_argument("--num_iterations", type=int, default=8)
-    parser.add_argument("--expert_dim", type=int, default=256)
-    parser.add_argument("--vocab_size", type=int, default=10)
+    parser.add_argument("--expert_dim", type=int, default=1024)
+    parser.add_argument("--vocab_size", type=int, default=32000)
+    parser.add_argument("--max_seq_len", type=int, default=128)
 
     args = parser.parse_args()
 
@@ -85,7 +87,8 @@ def main():
         "num_experts": args.num_experts,
         "num_iterations": args.num_iterations,
         "expert_dim": args.expert_dim,
-        "vocab_size": args.vocab_size
+        "vocab_size": args.vocab_size,
+        "max_seq_len": args.max_seq_len
     }
 
     try:

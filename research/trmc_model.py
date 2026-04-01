@@ -7,7 +7,7 @@ a contrastive learning objective.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -198,21 +198,35 @@ class TRMCModel(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        hidden_dim: int = 128,
-        num_heads: int = 4,
+        hidden_dim: int = 256,
+        num_heads: int = 8,
         num_experts: int = 8,
-        expert_dim: int = 256,
+        expert_dim: int = 1024,
         num_iterations: int = 8,
-        max_seq_len: int = 64,
+        max_seq_len: int = 128,
         matryoshka_dims: Optional[List[int]] = None,
         use_vision: bool = True,
     ) -> None:
+        """Initializes the TRMCModel.
+
+        Args:
+            vocab_size (int): Size of the vocabulary.
+            hidden_dim (int): Dimensionality of the hidden states. Defaults to 256.
+            num_heads (int): Number of attention heads. Defaults to 8.
+            num_experts (int): Number of experts in MoE. Defaults to 8.
+            expert_dim (int): Intermediate dimensionality of experts. Defaults to 1024.
+            num_iterations (int): Number of recursive iterations. Defaults to 8.
+            max_seq_len (int): Maximum sequence length. Defaults to 128.
+            matryoshka_dims (Optional[List[int]]): Dimensions for Matryoshka embeddings.
+            use_vision (bool): Whether to include a vision encoder. Defaults to True.
+        """
         super().__init__()
         self.vocab_size = vocab_size
         self.hidden_dim = hidden_dim
         self.num_iterations = num_iterations
         self.max_seq_len = max_seq_len
-        self.matryoshka_dims = matryoshka_dims or [32, 64, 128]
+        # Default matryoshka dims: quarter, half, and full hidden_dim
+        self.matryoshka_dims = matryoshka_dims or [hidden_dim // 4, hidden_dim // 2, hidden_dim]
 
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
         self.pos_embedding = nn.Parameter(torch.zeros(1, max_seq_len, hidden_dim))
