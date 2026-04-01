@@ -107,9 +107,39 @@ For a more hands-on approach, use the provided notebook:
    ```bash
    jupyter notebook research/train_trmc.ipynb
    ```
-2. Follow the cells to visualize loss curves and model predictions in real-time.
+2. Follow the cells to:
+   - Understand the `LogicPuzzlesDataset`.
+   - Configure the `TRMCModel` architecture.
+   - Run the training loop with integrated Cross-Entropy and Contrastive loss.
+   - Visualize loss curves using `matplotlib`.
+   - Export your model for deployment.
 
-## 6. Advanced Usage
+## 6. Deployment with Ollama
+
+Ollama is a powerful tool for running LLMs locally. You can use it to run TRMC models once they are trained.
+
+### 1. Export the Model
+After training, use the provided export tool:
+```bash
+python tools/export_ollama.py --checkpoint checkpoints/trmc/model_final.pt
+```
+This script generates a `Modelfile` in `checkpoints/ollama/`.
+
+### 2. GGUF Conversion
+TRMC models must be converted to the GGUF format (used by llama.cpp and Ollama).
+Follow the instructions provided by the export tool to perform this conversion.
+
+### 3. Create the Ollama Model
+```bash
+ollama create trmc-model -f checkpoints/ollama/Modelfile
+```
+
+### 4. Run the Model
+```bash
+ollama run trmc-model
+```
+
+## 7. Advanced Usage
 
 ### Monitoring
 The `components/telemetry` module logs training metrics. You can view these logs to ensure the model is converging correctly.

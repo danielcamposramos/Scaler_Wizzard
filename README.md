@@ -106,7 +106,15 @@ This project uses Python and Node.js. You will need to have them installed on yo
 
 The **Tiny Recursive MoE Contrastive (TRMC)** model is our flagship architecture for efficient, high-reasoning AI on consumer hardware.
 
-For a comprehensive guide on setting up your environment on **SparkyLinux** and training your first model, see:
+### Key Features
+- **Recursive Core**: Reuses parameters across multiple 'thinking' steps.
+- **Sparse MoE**: Provides high capacity with low computational cost.
+- **Contrastive Learning**: Aligns latent states for better logic discrimination.
+- **Matryoshka Embeddings**: Multi-resolution representations.
+- **Vision Awareness**: Ability to process spatial/OCR data.
+- **Ollama Ready**: Export your trained models for local execution.
+
+For a comprehensive guide on setting up your environment on **SparkyLinux**, training in Jupyter, and exporting to Ollama, see:
 👉 **[Getting Started with TRMC](docs/getting_started_trmc.md)**
 
 ## Usage
