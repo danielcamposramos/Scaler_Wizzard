@@ -58,6 +58,8 @@ class AdaptiveContextManager:
         """Heuristic for current VRAM usage of the process."""
         if torch.cuda.is_available():
             return torch.cuda.memory_allocated() / (1024**3)
+        elif torch.backends.mps.is_available():
+            return torch.mps.current_allocated_memory() / (1024**3)
         return 0.0
 
     def _get_current_ram_gb(self) -> float:
@@ -77,10 +79,14 @@ class AdaptiveContextManager:
         """
         vram_usage = self._get_current_vram_gb()
 
-        # 1. Try VRAM
+        # 1. Try VRAM (NVIDIA CUDA or Apple Silicon MPS)
         if vram_usage < self.vram_threshold_gb:
-            self.context_registry[key] = {"tier": "vram", "data": latent_state.detach().cuda()}
-            return "vram"
+            if torch.cuda.is_available():
+                self.context_registry[key] = {"tier": "vram", "data": latent_state.detach().cuda()}
+                return "vram"
+            elif torch.backends.mps.is_available():
+                self.context_registry[key] = {"tier": "vram", "data": latent_state.detach().to("mps")}
+                return "vram"
 
         # 2. Try RAM
         ram_usage = self._get_current_ram_gb()
