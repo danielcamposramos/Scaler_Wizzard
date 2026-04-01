@@ -7,6 +7,7 @@ This guide provides a comprehensive walkthrough for setting up your environment 
 To train TRMC models effectively on consumer-grade hardware, we recommend the following:
 
 - **GPU**: NVIDIA RTX 3060/3070 (8GB VRAM) or better. The architecture is optimized for 8GB-12GB VRAM.
+- **Apple Silicon**: M1/M2/M3 (Pro/Max/Ultra) with 16GB+ Unified Memory.
 - **CPU**: 8+ core processor (e.g., AMD Ryzen 7 or Intel Core i7).
 - **RAM**: 16GB minimum (32GB recommended for large datasets).
 - **Storage**: 50GB+ free SSD space for datasets and checkpoints.
@@ -24,13 +25,18 @@ SparkyLinux is a fast, lightweight, and fully customizable Debian-based Linux di
    sudo apt update && sudo apt upgrade -y
    ```
 
-### NVIDIA Driver Installation:
+### NVIDIA Driver Installation (for Linux):
 SparkyLinux provides `sparky-aptus` to simplify driver installation:
 1. Open **Sparky APTus**.
 2. Navigate to **Graphics** -> **NVIDIA Drivers**.
 3. Select the latest proprietary driver and follow the prompts.
 4. Reboot your system.
 5. Verify installation by running `nvidia-smi` in the terminal.
+
+### Apple Silicon Setup (macOS):
+Ensure you have the latest macOS and Xcode Command Line Tools installed:
+1. Install Homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+2. Install Python: `brew install python`
 
 ## 3. Software Environment Setup
 
@@ -54,12 +60,21 @@ sudo apt install git python3-pip python3-venv build-essential -y
    ```
 
 3. **Install Dependencies**:
+
+   **For NVIDIA GPU (Linux/Windows):**
    ```bash
    pip install --upgrade pip
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
    pip install tqdm pyyaml gputil psutil jsonschema ipykernel
    ```
    *Note: Adjust the CUDA version (cu118) according to your installed driver.*
+
+   **For Apple Silicon (macOS):**
+   ```bash
+   pip install --upgrade pip
+   pip install torch torchvision torchaudio
+   pip install tqdm pyyaml gputil psutil jsonschema ipykernel
+   ```
 
 ## 4. Understanding TRMC Architecture
 
@@ -85,6 +100,9 @@ To run a curation preview:
 ```bash
 python3 research/dataset_curator.py
 ```
+
+### Training on Apple Silicon
+The TRMC model fully supports Apple Silicon (MPS). The training script `research/train_trmc.py` will automatically detect and use the MPS device if available.
 
 ### Training via Script
 The primary way to train is using the `train_trmc.py` script. To ensure imports work correctly, run it from the project root:

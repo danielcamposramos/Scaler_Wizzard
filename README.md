@@ -50,6 +50,7 @@ Scaler Wizard is designed to run on **consumer hardware** using efficient techni
 - NVIDIA RTX 4060 Ti (16GB) - Good for 3B models, 7B with QLoRA
 - NVIDIA RTX 3090 (24GB) - Excellent all-around
 - NVIDIA RTX 3060 (12GB) - Entry level for 3B models
+- Apple Silicon (M1/M2/M3) - Fully supported for TRMC models via MPS backend
 
 ⚠️ **Partially Supported** (requires QLoRA/optimizations):
 - NVIDIA RTX 4070 Ti (12GB)
@@ -58,7 +59,6 @@ Scaler Wizard is designed to run on **consumer hardware** using efficient techni
 ❌ **Not Recommended**:
 - GPUs with <8GB VRAM
 - AMD GPUs (ROCm support not yet tested)
-- Apple Silicon (MPS backend not yet optimized)
 
 **Note**: True parameter expansion (architectural growth like 3B → 7B) is **not currently supported** as it requires multi-GPU clusters (60+ GB VRAM) and extensive pretraining. See `docs/architecture/expansion_gap_analysis.md` for details on what would be required.
 

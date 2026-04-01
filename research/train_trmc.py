@@ -76,7 +76,12 @@ def train_trmc():
     """Main training loop for the TRMC model."""
 
     # 1. Hyperparameters
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     vocab_size = 32000
     seq_len = 128
     hidden_dim = 256

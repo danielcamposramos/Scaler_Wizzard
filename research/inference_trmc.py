@@ -1,7 +1,7 @@
-"""Optimized CPU Inference for TRMC Models.
+"""Optimized Inference for TRMC Models.
 
-This script provides a dedicated way to execute TRMC models on CPU-only
-environments, including optimizations for thread count and dynamic quantization.
+This script provides a dedicated way to execute TRMC models on various
+environments (CPU, CUDA, MPS), including optimizations for thread count and dynamic quantization.
 """
 
 import argparse
@@ -14,18 +14,23 @@ import torch
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from trmc_model import TRMCModel
 
-def run_cpu_inference(
+def run_inference(
     checkpoint_path: str = None,
+    device_type: str = "cpu",
     num_threads: int = 4,
     optimize: bool = True,
     seq_len: int = 64,
     iterations: int = 8
 ):
-    """Runs a benchmark/sample inference on CPU with optimizations."""
+    """Runs a benchmark/sample inference on the specified device with optimizations."""
 
-    # 1. CPU-specific global optimizations
-    torch.set_num_threads(num_threads)
-    print(f"Setting torch threads to {num_threads}")
+    # 1. Device-specific global optimizations
+    if device_type == "cpu":
+        torch.set_num_threads(num_threads)
+        print(f"Setting torch threads to {num_threads}")
+
+    device = torch.device(device_type)
+    print(f"Using device: {device}")
 
     # 2. Model initialization/loading
     if checkpoint_path:
@@ -35,11 +40,11 @@ def run_cpu_inference(
         if checkpoint_path.endswith(".pt"):
              # For this demo, we'll create a model with default specs and load state dict
              model = TRMCModel(vocab_size=32000, hidden_dim=256, num_experts=8, num_iterations=iterations)
-             model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
+             model.load_state_dict(torch.load(checkpoint_path, map_location=device))
         else:
-             model = TRMCModel.from_pretrained(checkpoint_path, map_location="cpu")
+             model = TRMCModel.from_pretrained(checkpoint_path, map_location=device_type)
     else:
-        print("Initializing new TRMC model with default specs for benchmarking...")
+        print(f"Initializing new TRMC model on {device_type} with default specs for benchmarking...")
         model = TRMCModel(
             vocab_size=32000,
             hidden_dim=256,
@@ -50,14 +55,15 @@ def run_cpu_inference(
             max_seq_len=seq_len
         )
 
-    # 3. Optimization
-    if optimize:
+    # 3. Optimization (only for CPU)
+    if optimize and device_type == "cpu":
         model.optimize_for_cpu()
 
+    model.to(device)
     model.eval()
 
     # 4. Prepare input
-    dummy_input = torch.randint(0, 32000, (1, seq_len))
+    dummy_input = torch.randint(0, 32000, (1, seq_len)).to(device)
     print(f"Input shape: {dummy_input.shape}")
 
     # 5. Inference loop
@@ -80,17 +86,24 @@ def run_cpu_inference(
         print(f"  Token ID {top_indices[i].item()}: {top_probs[i].item():.4f}")
 
 def main():
-    parser = argparse.ArgumentParser(description="TRMC CPU Inference Tool")
+    parser = argparse.ArgumentParser(description="TRMC Inference Tool")
     parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint")
-    parser.add_argument("--threads", type=int, default=4, help="Number of CPU threads")
-    parser.add_argument("--no-optimize", action="store_true", help="Disable dynamic quantization")
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda", "mps"], help="Device to run inference on")
+    parser.add_argument("--threads", type=int, default=4, help="Number of CPU threads (only for --device cpu)")
+    parser.add_argument("--no-optimize", action="store_true", help="Disable dynamic quantization (only for --device cpu)")
     parser.add_argument("--seq-len", type=int, default=64, help="Sequence length for inference")
     parser.add_argument("--iterations", type=int, default=8, help="Number of recursive reasoning steps")
 
     args = parser.parse_args()
 
-    run_cpu_inference(
+    # Auto-detect MPS if on Apple Silicon and device is not specified
+    device = args.device
+    if device == "cpu" and torch.backends.mps.is_available():
+        print("Apple Silicon (MPS) detected. You can use '--device mps' for faster inference.")
+
+    run_inference(
         checkpoint_path=args.checkpoint,
+        device_type=device,
         num_threads=args.threads,
         optimize=not args.no_optimize,
         seq_len=args.seq_len,

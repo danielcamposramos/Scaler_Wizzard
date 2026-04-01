@@ -66,6 +66,15 @@ class SparseMoELayer(nn.Module):
                         bnb.nn.Linear4bit(expert_dim, hidden_dim, bias=False)
                     ) for _ in range(num_experts)
                 ])
+            elif torch.backends.mps.is_available():
+                print("Warning: bitsandbytes 4bit requested but on Apple Silicon (MPS). bitsandbytes doesn't support MPS. Falling back to standard Linear.")
+                self.experts = nn.ModuleList([
+                    nn.Sequential(
+                        nn.Linear(hidden_dim, expert_dim),
+                        nn.GELU(),
+                        nn.Linear(expert_dim, hidden_dim)
+                    ) for _ in range(num_experts)
+                ])
             else:
                 print("Warning: bitsandbytes 4bit requested but no GPU available. Falling back to standard Linear.")
                 self.experts = nn.ModuleList([
@@ -225,6 +234,9 @@ class TRMCModel(nn.Module):
 
         if use_quantization and HAS_BNB and torch.cuda.is_available():
              self.prediction_head = bnb.nn.Linear4bit(hidden_dim, vocab_size, bias=False)
+        elif use_quantization and torch.backends.mps.is_available():
+             # MPS doesn't support bitsandbytes yet, but we can still use the model
+             self.prediction_head = nn.Linear(hidden_dim, vocab_size)
         else:
              self.prediction_head = nn.Linear(hidden_dim, vocab_size)
 
@@ -277,7 +289,7 @@ class TRMCModel(nn.Module):
 
         Args:
             load_directory (str): Directory containing config.json and pytorch_model.bin.
-            map_location (str): Device to load the model to (e.g., 'cpu' or 'cuda').
+            map_location (str): Device to load the model to (e.g., 'cpu', 'cuda', or 'mps').
         """
         with open(os.path.join(load_directory, "config.json"), "r") as f:
             config = json.load(f)
