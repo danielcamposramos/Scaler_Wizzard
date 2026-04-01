@@ -114,6 +114,12 @@ The **Tiny Recursive MoE Contrastive (TRMC)** model is our flagship architecture
 - **Vision Awareness**: Ability to process spatial/OCR data.
 - **Ollama Ready**: Export your trained models for local execution.
 
+### Real-World Data Integration
+Scaler Wizard now supports one-click ingestion of high-fidelity 2025 datasets:
+- **Reasoning**: `OpenThoughts-1.2M` & `NuminaMath-CoT` for the Recursive Core.
+- **Diversity**: `smoltalk2` for Sparse MoE domain expertise.
+- **Alignment**: `orpo-dpo-mix-40k` for Contrastive latent state alignment.
+
 For a comprehensive guide on setting up your environment on **SparkyLinux**, training in Jupyter, and exporting to Ollama, see:
 👉 **[Getting Started with TRMC](docs/getting_started_trmc.md)**
 

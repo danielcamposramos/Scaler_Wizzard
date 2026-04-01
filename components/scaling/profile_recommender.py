@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+import platform
 from typing import Dict, Optional, Any
 
 try:  # Optional dependency
@@ -162,16 +163,74 @@ class ProfileRecommender:
         vram = self.hardware.vram_free
         order = self._profile_priority(use_case, model_size)
         for key in order:
-            template = self.profiles.get(key)
+            template = dict(self.profiles.get(key, {}))
             if not template:
                 continue
             min_vram = float(template.get("min_vram_gb", 0))
             if vram >= min_vram:
+                # Inject recommended datasets based on use-case
+                template["recommended_datasets"] = self._get_dataset_recommendations(use_case)
+                template["use_unsloth"] = self._check_unsloth_compatibility()
+                template["device"] = self._get_target_device()
+                template["epochs"] = 50 # Increased for pre-training, consider num_train_steps for very large runs
                 return template
         # fallback to first available profile
         if self.profiles:
-            return next(iter(self.profiles.values()))
+            fallback = dict(next(iter(self.profiles.values())))
+            fallback["recommended_datasets"] = self._get_dataset_recommendations("default")
+            return fallback
         return {}
+
+    def _check_unsloth_compatibility(self) -> bool:
+        """Checks if the hardware and environment support Unsloth acceleration."""
+        if not self.hardware: return False
+        # Unsloth is NVIDIA specific. Apple Silicon uses MPS.
+        return "nvidia" in self.hardware.gpu_name.lower() and platform.system() != "Darwin"
+
+    def _get_target_device(self) -> str:
+        """Determines the torch device string."""
+        if platform.system() == "Darwin":
+            return "mps"
+        try:
+            import torch
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        except ImportError:
+            return "cpu"
+
+    def _get_dataset_recommendations(self, use_case: str) -> list[str]:
+        """Returns a list of Hugging Face dataset IDs relevant to the use case."""
+        # Each entry is now a dictionary with 'path', 'name' (optional), and 'weight'
+        recommendations = {
+            "long_context": [
+                {"path": "togethercomputer/LongAlpaca-12k", "weight": 0.7},
+                {"path": "wikipedia", "name": "20220301.en", "weight": 0.3}
+            ],
+            "reasoning": [
+                {"path": "AI-MO/NuminaMath-CoT", "weight": 0.6},
+                {"path": "TIGER-Lab/MathInstruct", "weight": 0.4}
+            ],
+            "creative": [
+                {"path": "facebook/light_dialog", "weight": 0.5},
+                {"path": "HuggingFaceH4/ultrachat_200k", "weight": 0.5}
+            ],
+            "logic_games": [
+                {"path": "laion/pgn-chess-proft", "weight": 0.6},
+                {"path": "facebook/light_dialog", "weight": 0.4}
+            ],
+            "trmc_special": [ # This is the "all datasets in one go" scenario
+                {"path": "wikipedia", "name": "20220301.en", "weight": 0.2},
+                {"path": "AI-MO/NuminaMath-CoT", "weight": 0.3},
+                {"path": "TIGER-Lab/MathInstruct", "weight": 0.2},
+                {"path": "laion/pgn-chess-proft", "weight": 0.1},
+                {"path": "facebook/light_dialog", "weight": 0.1}
+                # Note: For ground-up pre-training, consider larger, more generic text datasets.
+                # The 'contrastive' aspect of TRMC would require a custom loss or data collator.
+            ],
+            "default": [
+                {"path": "mlabonne/FineTome-100k", "weight": 1.0}
+            ]
+        }
+        return recommendations.get(use_case, recommendations["default"])
 
     def _profile_priority(self, use_case: str, model_size: str) -> list[str]:
         """Determines the order of profiles to check based on use case and model size.

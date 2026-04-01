@@ -1,0 +1,13 @@
+unsloth
+trl>=0.12.0
+torch
+transformers
+datasets
+peft
+accelerate
+bitsandbytes
+psutil
+GPUtil
+pyyaml
+jsonschema
+rich
