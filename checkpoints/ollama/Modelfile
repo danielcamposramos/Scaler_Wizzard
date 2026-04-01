@@ -1,0 +1,14 @@
+# TRMC Modelfile
+# Generated for Ollama integration
+
+FROM ./model_final.gguf
+
+# TRMC Specific Parameters
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER stop "<|endoftext|>"
+
+# System prompt for reasoning
+SYSTEM """You are a TRMC reasoning agent.
+Think step-by-step using your recursive core.
+Perform contrastive verification of your logic."""
