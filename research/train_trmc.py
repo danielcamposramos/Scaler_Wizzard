@@ -102,7 +102,8 @@ def train_trmc():
         num_experts=num_experts,
         expert_dim=expert_dim,
         num_iterations=num_iterations,
-        max_seq_len=seq_len
+        max_seq_len=seq_len,
+        matryoshka_dims=[32, 64, 128]
     ).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -118,31 +119,36 @@ def train_trmc():
         for batch_idx, (x, y_pos, y_negs) in enumerate(progress_bar):
             x, y_pos, y_negs = x.to(device), y_pos.to(device), y_negs.to(device)
 
+            # Optional: Simulate vision input for multi-modal training
+            # images: (B, 3, 32, 32)
+            images = torch.randn(x.shape[0], 3, 32, 32).to(device)
+
             optimizer.zero_grad()
 
             # Forward pass through recursive core for the input
-            logits, query_latent = model(x)
+            logits, query_latent = model(x, images=images)
 
             # Forward pass to get latents for positive/negative examples
             # In a full MoCo setup, these would come from a momentum-updated encoder.
             # For this lightweight version, we reuse the same model.
             with torch.no_grad():
-                _, pos_latent = model(y_pos)
+                _, pos_latent = model(y_pos, images=images)
 
                 batch_size, num_negs, s_len = y_negs.shape
                 # Flatten negatives to process in one batch pass
-                _, neg_latent_all = model(y_negs.view(-1, s_len))
-                neg_latents = neg_latent_all.view(batch_size, num_negs, s_len, -1)
+                _, neg_latent_all = model(y_negs.view(-1, s_len), images=images.repeat_interleave(num_negs, dim=0))
+                neg_latents = neg_latent_all.view(batch_size, num_negs, -1, hidden_dim)
 
             # Compute standard cross-entropy prediction loss
             ce_loss = criterion(logits.view(-1, vocab_size), y_pos.view(-1))
 
-            # Compute contrastive loss on sequence-level latents (mean-pooled)
+            # Compute Matryoshka-aware contrastive loss on sequence-level latents (mean-pooled)
             # Query: (B, H), Pos: (B, H), Negs: (B, N, H)
             c_loss = contrastive_loss(
                 query_latent.mean(dim=1),
                 pos_latent.mean(dim=1),
-                neg_latents.mean(dim=2)
+                neg_latents.mean(dim=2),
+                matryoshka_dims=model.matryoshka_dims
             )
 
             # Total loss
