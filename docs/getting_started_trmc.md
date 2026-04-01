@@ -119,15 +119,19 @@ For a more hands-on approach, use the provided notebook:
 Ollama is a powerful tool for running LLMs locally. You can use it to run TRMC models once they are trained.
 
 ### 1. Export the Model
-After training, use the provided export tool:
+After training, use the provided export tool to convert the model to GGUF and generate a Modelfile:
 ```bash
 python tools/export_ollama.py --checkpoint checkpoints/trmc/model_final.pt
 ```
-This script generates a `Modelfile` in `checkpoints/ollama/`.
+This script uses the specialized `trmc_converter.py` to preserve recursive MoE metadata and generates a `Modelfile` in `checkpoints/ollama/`.
 
-### 2. GGUF Conversion
-TRMC models must be converted to the GGUF format (used by llama.cpp and Ollama).
-Follow the instructions provided by the export tool to perform this conversion.
+### 2. Compile the Architectural Converter
+The `trmc.cpp` file provides the architectural definition for converting TRMC models into the GGUF format:
+```bash
+g++ tools/trmc.cpp -o trmc_converter
+./trmc_converter input.pt model.gguf
+```
+This program outlines how the recursive MoE layers and architectural metadata are mapped to the GGUF format for use with Ollama.
 
 ### 3. Create the Ollama Model
 ```bash

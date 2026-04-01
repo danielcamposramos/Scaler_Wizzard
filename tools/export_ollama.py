@@ -1,51 +1,15 @@
 """Ollama Export Tool for TRMC Models.
 
 This script handles the preparation of trained TRMC models for use within Ollama.
-It converts PyTorch checkpoints to GGUF format and generates a Modelfile.
+It uses a specialized converter (trmc_converter.py) to generate GGUF files and
+references the C++ architectural definition (trmc.cpp).
 """
 
 import argparse
 import os
 import torch
 import numpy as np
-from gguf import GGUFWriter
-
-
-def convert_to_gguf(checkpoint_path: str, gguf_path: str):
-    """Converts a TRMC PyTorch checkpoint to GGUF format.
-
-    Args:
-        checkpoint_path (str): Path to the .pt checkpoint.
-        gguf_path (str): Path to save the .gguf file.
-    """
-    print(f"Loading checkpoint from {checkpoint_path}...")
-    state_dict = torch.load(checkpoint_path, map_location="cpu")
-
-    # Initialize GGUF writer
-    writer = GGUFWriter(gguf_path, arch="trmc")
-
-    # Add metadata
-    writer.add_name("TRMC-Model")
-    writer.add_description("Tiny Recursive MoE Contrastive Model")
-
-    print("Writing tensors to GGUF...")
-    for name, tensor in state_dict.items():
-        # Convert torch tensor to numpy
-        data = tensor.detach().cpu().numpy()
-
-        # GGUF expects specific naming and types
-        # For this implementation, we preserve the original names
-        # and ensure data is in float32 for maximum compatibility
-        if data.dtype != np.float32:
-            data = data.astype(np.float32)
-
-        writer.add_tensor(name, data)
-
-    writer.write_header_to_file()
-    writer.write_kv_data_to_file()
-    writer.write_tensors_to_file()
-    writer.close()
-    print(f"Successfully converted to {gguf_path}")
+from trmc_converter import convert_trmc_to_gguf
 
 
 def create_modelfile(gguf_path: str, modelfile_path: str):
@@ -61,6 +25,7 @@ def create_modelfile(gguf_path: str, modelfile_path: str):
 FROM ./{os.path.basename(gguf_path)}
 
 # TRMC Specific Parameters
+PARAMETER architecture trmc
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
 PARAMETER stop "<|endoftext|>"
@@ -91,6 +56,13 @@ def main():
         default="checkpoints/ollama",
         help="Directory to save the export artifacts"
     )
+    # Architectural parameters
+    parser.add_argument("--hidden_dim", type=int, default=128)
+    parser.add_argument("--num_heads", type=int, default=4)
+    parser.add_argument("--num_experts", type=int, default=8)
+    parser.add_argument("--num_iterations", type=int, default=8)
+    parser.add_argument("--expert_dim", type=int, default=256)
+    parser.add_argument("--vocab_size", type=int, default=10)
 
     args = parser.parse_args()
 
@@ -107,8 +79,17 @@ def main():
     print(f"Exporting checkpoint: {args.checkpoint}")
 
     # 1. Convert to GGUF
+    config = {
+        "hidden_dim": args.hidden_dim,
+        "num_heads": args.num_heads,
+        "num_experts": args.num_experts,
+        "num_iterations": args.num_iterations,
+        "expert_dim": args.expert_dim,
+        "vocab_size": args.vocab_size
+    }
+
     try:
-        convert_to_gguf(args.checkpoint, gguf_path)
+        convert_trmc_to_gguf(args.checkpoint, gguf_path, config)
     except Exception as e:
         print(f"Error during GGUF conversion: {e}")
         print("Note: Conversion requires the 'gguf' python package and a valid .pt file.")
@@ -118,8 +99,9 @@ def main():
     create_modelfile(gguf_path, modelfile_path)
 
     print("\n--- NEXT STEPS ---")
-    print(f"1. Run: ollama create trmc-model -f {modelfile_path}")
-    print("2. Run: ollama run trmc-model")
+    print(f"1. Compile the architectural converter: g++ tools/trmc.cpp -o trmc_converter")
+    print(f"2. Run: ollama create trmc-model -f {modelfile_path}")
+    print("3. Run: ollama run trmc-model")
 
 
 if __name__ == "__main__":
