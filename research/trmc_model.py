@@ -57,13 +57,24 @@ class SparseMoELayer(nn.Module):
 
         # Expert networks
         if use_quantization and HAS_BNB:
-            self.experts = nn.ModuleList([
-                nn.Sequential(
-                    bnb.nn.Linear4bit(hidden_dim, expert_dim, bias=False),
-                    nn.GELU(),
-                    bnb.nn.Linear4bit(expert_dim, hidden_dim, bias=False)
-                ) for _ in range(num_experts)
-            ])
+            # Check if we are on a GPU, bitsandbytes 4bit needs it
+            if torch.cuda.is_available():
+                self.experts = nn.ModuleList([
+                    nn.Sequential(
+                        bnb.nn.Linear4bit(hidden_dim, expert_dim, bias=False),
+                        nn.GELU(),
+                        bnb.nn.Linear4bit(expert_dim, hidden_dim, bias=False)
+                    ) for _ in range(num_experts)
+                ])
+            else:
+                print("Warning: bitsandbytes 4bit requested but no GPU available. Falling back to standard Linear.")
+                self.experts = nn.ModuleList([
+                    nn.Sequential(
+                        nn.Linear(hidden_dim, expert_dim),
+                        nn.GELU(),
+                        nn.Linear(expert_dim, hidden_dim)
+                    ) for _ in range(num_experts)
+                ])
         else:
             self.experts = nn.ModuleList([
                 nn.Sequential(
@@ -212,7 +223,7 @@ class TRMCModel(nn.Module):
             hidden_dim, num_heads, num_experts, expert_dim, use_quantization=use_quantization
         )
 
-        if use_quantization and HAS_BNB:
+        if use_quantization and HAS_BNB and torch.cuda.is_available():
              self.prediction_head = bnb.nn.Linear4bit(hidden_dim, vocab_size, bias=False)
         else:
              self.prediction_head = nn.Linear(hidden_dim, vocab_size)
@@ -261,13 +272,38 @@ class TRMCModel(nn.Module):
         torch.save(self.state_dict(), os.path.join(save_directory, "pytorch_model.bin"))
 
     @classmethod
-    def from_pretrained(cls, load_directory: str):
-        """Loads the model from a directory."""
+    def from_pretrained(cls, load_directory: str, map_location: str = "cpu"):
+        """Loads the model from a directory.
+
+        Args:
+            load_directory (str): Directory containing config.json and pytorch_model.bin.
+            map_location (str): Device to load the model to (e.g., 'cpu' or 'cuda').
+        """
         with open(os.path.join(load_directory, "config.json"), "r") as f:
             config = json.load(f)
         model = cls(**config)
-        model.load_state_dict(torch.load(os.path.join(load_directory, "pytorch_model.bin")))
+        model.load_state_dict(
+            torch.load(os.path.join(load_directory, "pytorch_model.bin"), map_location=map_location)
+        )
         return model
+
+    def optimize_for_cpu(self):
+        """Applies CPU-specific optimizations such as dynamic quantization."""
+        print("Optimizing TRMC Model for CPU execution...")
+        # Apply dynamic quantization to the core and prediction head
+        # This can significantly speed up inference on many CPUs
+        self.eval()
+        # MultiheadAttention quantization can be tricky in some versions of PyTorch
+        # Let's start with Linear layers first which are the most common
+        self.core = torch.quantization.quantize_dynamic(
+            self.core, {nn.Linear}, dtype=torch.qint8
+        )
+        if isinstance(self.prediction_head, nn.Linear):
+             self.prediction_head = torch.quantization.quantize_dynamic(
+                 self.prediction_head, {nn.Linear}, dtype=torch.qint8
+             )
+        print("Model optimized for CPU.")
+        return self
 
 
 def contrastive_loss(
