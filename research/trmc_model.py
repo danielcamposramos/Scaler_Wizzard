@@ -158,16 +158,41 @@ class TRMCBlock(nn.Module):
         return x
 
 
-class TRMCModel(nn.Module):
-    """Tiny Recursive MoE Contrastive (TRMC) Model.
+class VisionEncoder(nn.Module):
+    """Lightweight vision encoder inspired by DeepSeek-VL.
 
-    This model recursively applies a small transformer core to solve reasoning tasks.
+    This encoder projects image-like spatial data into the transformer's latent space.
+    For this 'Tiny' implementation, we use a simple CNN-based encoder.
+    """
+    def __init__(self, hidden_dim: int, patch_size: int = 4):
+        super().__init__()
+        self.patch_size = patch_size
+        # Simple projection from image patches to hidden_dim
+        self.proj = nn.Conv2d(3, hidden_dim, kernel_size=patch_size, stride=patch_size)
+        self.norm = nn.LayerNorm(hidden_dim)
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        """Projects images to visual tokens.
+
+        Args:
+            images (torch.Tensor): Shape (B, 3, H, W).
+
+        Returns:
+            torch.Tensor: Visual tokens (B, L_v, hidden_dim).
+        """
+        x = self.proj(images)  # (B, hidden_dim, H/patch, W/patch)
+        x = x.flatten(2).transpose(1, 2)  # (B, L_v, hidden_dim)
+        return self.norm(x)
+
+
+class TRMCModel(nn.Module):
+    """Tiny Recursive MoE Contrastive (TRMC) Model with Matryoshka and Vision.
 
     Attributes:
         embedding (nn.Embedding): Token embedding layer.
+        vision_encoder (VisionEncoder): Optional lightweight vision encoder.
         core (TRMCBlock): The recursive transformer core block.
         prediction_head (nn.Linear): Maps latent state to output vocabulary.
-        num_iterations (int): The number of recursive reasoning steps.
     """
 
     def __init__(
@@ -179,61 +204,66 @@ class TRMCModel(nn.Module):
         expert_dim: int = 256,
         num_iterations: int = 8,
         max_seq_len: int = 64,
+        matryoshka_dims: Optional[List[int]] = None,
+        use_vision: bool = True,
     ) -> None:
-        """Initializes the TRMCModel.
-
-        Args:
-            vocab_size (int): The size of the input/output vocabulary.
-            hidden_dim (int): The dimensionality of the hidden states. Defaults to 128.
-            num_heads (int): The number of attention heads. Defaults to 4.
-            num_experts (int): The total number of experts. Defaults to 8.
-            expert_dim (int): The intermediate dimensionality of each expert. Defaults to 256.
-            num_iterations (int): The number of recursive steps. Defaults to 8.
-            max_seq_len (int): The maximum sequence length. Defaults to 64.
-        """
         super().__init__()
         self.vocab_size = vocab_size
         self.hidden_dim = hidden_dim
         self.num_iterations = num_iterations
         self.max_seq_len = max_seq_len
+        self.matryoshka_dims = matryoshka_dims or [32, 64, 128]
 
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
         self.pos_embedding = nn.Parameter(torch.zeros(1, max_seq_len, hidden_dim))
 
+        # Vision/OCR Awareness
+        self.use_vision = use_vision
+        if use_vision:
+            self.vision_encoder = VisionEncoder(hidden_dim)
+            self.vision_pos_embedding = nn.Parameter(torch.zeros(1, 256, hidden_dim))
+
         # Recursive core
         self.core = TRMCBlock(hidden_dim, num_heads, num_experts, expert_dim)
-
-        # Prediction head
         self.prediction_head = nn.Linear(hidden_dim, vocab_size)
 
     def forward(
         self,
         x: torch.Tensor,
+        images: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for the TRMCModel.
 
         Args:
             x (torch.Tensor): Input tokens of shape (batch_size, seq_len).
+            images (Optional[torch.Tensor]): Input images of shape (B, 3, H, W).
             num_steps (Optional[int]): Number of iterations to run. Defaults to self.num_iterations.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
                 - Logits of shape (batch_size, seq_len, vocab_size) from the final step.
-                - Final latent state of shape (batch_size, seq_len, hidden_dim).
+                - Final latent state of shape (batch_size, total_seq_len, hidden_dim).
         """
         batch_size, seq_len = x.shape
         num_steps = num_steps or self.num_iterations
 
-        # Initial state: embed inputs and add positional encoding
+        # Initial state: embed inputs
         h = self.embedding(x) + self.pos_embedding[:, :seq_len, :]
+
+        # Add vision tokens if available
+        if self.use_vision and images is not None:
+            v = self.vision_encoder(images)
+            v = v + self.vision_pos_embedding[:, :v.shape[1], :]
+            h = torch.cat([v, h], dim=1)
 
         # Recursive reasoning steps
         for _ in range(num_steps):
             h = self.core(h)
 
-        # Final prediction
-        logits = self.prediction_head(h)
+        # Final prediction (only on text tokens if vision tokens were prepended)
+        # Assuming we want to predict text tokens, which are at the end.
+        logits = self.prediction_head(h[:, -seq_len:, :])
 
         return logits, h
 
@@ -243,40 +273,43 @@ def contrastive_loss(
     positive_latent: torch.Tensor,
     negative_latents: torch.Tensor,
     temperature: float = 0.1,
+    matryoshka_dims: Optional[List[int]] = None,
 ) -> torch.Tensor:
-    """Calculates a supervised contrastive loss for the TRMC model.
-
-    This function encourages the query latent state to be closer to the positive
-    latent representation and farther from negative ones using InfoNCE loss.
+    """Calculates a Matryoshka-aware supervised contrastive loss.
 
     Args:
         query_latent (torch.Tensor): The current model state (B, H).
         positive_latent (torch.Tensor): Latent state of the positive example (B, H).
         negative_latents (torch.Tensor): Latent states of negative examples (B, N, H).
         temperature (float): The temperature for the contrastive loss. Defaults to 0.1.
+        matryoshka_dims (Optional[List[int]]): Dimensions for Matryoshka loss.
 
     Returns:
-        torch.Tensor: The calculated InfoNCE contrastive loss.
+        torch.Tensor: The calculated Matryoshka InfoNCE loss.
     """
-    # Normalize latents to the unit hypersphere
-    query = F.normalize(query_latent, p=2, dim=-1)
-    pos = F.normalize(positive_latent, p=2, dim=-1)
-    negs = F.normalize(negative_latents, p=2, dim=-1)
+    dims = matryoshka_dims or [query_latent.shape[-1]]
+    total_loss = 0.0
 
-    # Compute positive similarity: (B, 1)
-    pos_sim = torch.sum(query * pos, dim=-1, keepdim=True) / temperature
+    for dim in dims:
+        # Truncate latents for this dimension
+        q = query_latent[..., :dim]
+        p = positive_latent[..., :dim]
+        n = negative_latents[..., :dim]
 
-    # Compute negative similarities: (B, N)
-    # negs: (B, N, H), query: (B, H) -> unsqueeze query to (B, 1, H)
-    neg_sims = torch.bmm(negs, query.unsqueeze(-1)).squeeze(-1) / temperature
+        # Normalize truncated latents
+        q = F.normalize(q, p=2, dim=-1)
+        p = F.normalize(p, p=2, dim=-1)
+        n = F.normalize(n, p=2, dim=-1)
 
-    # Concatenate positive and negative similarities: (B, 1 + N)
-    logits = torch.cat([pos_sim, neg_sims], dim=-1)
+        # Compute InfoNCE for this dimension
+        pos_sim = torch.sum(q * p, dim=-1, keepdim=True) / temperature
+        neg_sims = torch.bmm(n, q.unsqueeze(-1)).squeeze(-1) / temperature
 
-    # The target is always index 0 (the positive sample)
-    labels = torch.zeros(logits.shape[0], dtype=torch.long, device=logits.device)
+        logits = torch.cat([pos_sim, neg_sims], dim=-1)
+        labels = torch.zeros(logits.shape[0], dtype=torch.long, device=logits.device)
+        total_loss += F.cross_entropy(logits, labels)
 
-    return F.cross_entropy(logits, labels)
+    return total_loss / len(dims)
 
 
 if __name__ == "__main__":
