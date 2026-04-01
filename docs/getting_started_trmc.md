@@ -1,0 +1,121 @@
+# Getting Started with Tiny Recursive MoE Contrastive (TRMC) Models
+
+This guide provides a comprehensive walkthrough for setting up your environment on SparkyLinux (a Debian-based distribution) and training the TRMC model from scratch.
+
+## 1. Hardware Requirements
+
+To train TRMC models effectively on consumer-grade hardware, we recommend the following:
+
+- **GPU**: NVIDIA RTX 3060/3070 (8GB VRAM) or better. The architecture is optimized for 8GB-12GB VRAM.
+- **CPU**: 8+ core processor (e.g., AMD Ryzen 7 or Intel Core i7).
+- **RAM**: 16GB minimum (32GB recommended for large datasets).
+- **Storage**: 50GB+ free SSD space for datasets and checkpoints.
+
+## 2. Operating System Setup (SparkyLinux)
+
+SparkyLinux is a fast, lightweight, and fully customizable Debian-based Linux distribution.
+
+### Installation Steps:
+1. **Download**: Obtain the latest SparkyLinux ISO (Stable or Semi-Rolling) from [sparkylinux.org](https://sparkylinux.org/download/).
+2. **Flash**: Use a tool like Etcher or `dd` to create a bootable USB drive.
+3. **Install**: Boot from the USB and follow the Calamares installer.
+4. **Update**: Once installed, open a terminal and run:
+   ```bash
+   sudo apt update && sudo apt upgrade -y
+   ```
+
+### NVIDIA Driver Installation:
+SparkyLinux provides `sparky-aptus` to simplify driver installation:
+1. Open **Sparky APTus**.
+2. Navigate to **Graphics** -> **NVIDIA Drivers**.
+3. Select the latest proprietary driver and follow the prompts.
+4. Reboot your system.
+5. Verify installation by running `nvidia-smi` in the terminal.
+
+## 3. Software Environment Setup
+
+### Prerequisites
+Install basic development tools:
+```bash
+sudo apt install git python3-pip python3-venv build-essential -y
+```
+
+### Repository Setup
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-username/scaler-wizard.git
+   cd scaler-wizard
+   ```
+
+2. **Create a Virtual Environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install Dependencies**:
+   ```bash
+   pip install --upgrade pip
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+   pip install tqdm pyyaml gputil psutil jsonschema ipykernel
+   ```
+   *Note: Adjust the CUDA version (cu118) according to your installed driver.*
+
+## 4. Understanding TRMC Architecture
+
+The TRMC model (Tiny Recursive MoE Contrastive) is designed for high reasoning capacity with low parameter counts (7M-20M), drawing inspiration from several cutting-edge architectures:
+
+- **Recursive Core (TRM)**: Inspired by Samsung Research, it reuses a single transformer block $N$ times (default 8) per forward pass. This allows the model to "think" deeper without increasing the number of physical parameters.
+- **Sparse MoE (Mixture of Experts)**: Uses a gating mechanism to route tokens to specialized experts. This provides the capacity of a much larger model while keeping the computational cost (FLOPs) equivalent to a tiny model.
+- **Matryoshka Embeddings**: Inspired by Qwen, these allow for efficient multi-scale representations. The model can be used at different "resolutions" (e.g., 32, 64, or 128 dimensions) depending on compute constraints.
+- **Vision Encoder**: A lightweight projection layer inspired by DeepSeek-VL that allows the model to process spatial/visual data alongside text, enabling multi-modal reasoning.
+- **Contrastive Learning**: Implements a supervised InfoNCE objective to align latent states of successful reasoning paths, distinguishing them from "negative" or incorrect logic.
+- **Adaptive Context**: A multi-tier system (VRAM -> RAM -> Disk) inspired by Ollama and Clawdbot, allowing the model to handle context windows that exceed physical hardware limits.
+
+## 5. Starting and Training the TRMC Model
+
+### Data Curation
+The training process begins with high-quality data. The `TRMCDatasetCurator` in `research/dataset_curator.py` is responsible for preparing:
+- **Wikipedia**: General knowledge.
+- **The Stack**: Multi-language code for logic.
+- **Math Datasets**: For structured reasoning.
+- **Synthetic Logic Puzzles**: Sequence reversal, Sudoku-style tasks, etc.
+
+To run a curation preview:
+```bash
+python3 research/dataset_curator.py
+```
+
+### Training via Script
+The primary way to train is using the `train_trmc.py` script. To ensure imports work correctly, run it from the project root:
+
+```bash
+# Add the research directory to PYTHONPATH so trmc_model can be imported
+export PYTHONPATH=$PYTHONPATH:$(pwd)/research
+python3 research/train_trmc.py
+```
+
+This script will:
+1. Initialize a `TRMCModel` with configured hyperparameters.
+2. Generate synthetic logic puzzles for training.
+3. Perform a training loop with combined Cross-Entropy and Contrastive loss.
+4. Save the final model to `checkpoints/trmc/model_final.pt`.
+
+### Interactive Training via Jupyter
+For a more hands-on approach, use the provided notebook:
+1. Start the Jupyter server:
+   ```bash
+   jupyter notebook research/train_trmc.ipynb
+   ```
+2. Follow the cells to visualize loss curves and model predictions in real-time.
+
+## 6. Advanced Usage
+
+### Monitoring
+The `components/telemetry` module logs training metrics. You can view these logs to ensure the model is converging correctly.
+
+### Safety Circuit Breaker
+The `components/safety` module monitors VRAM and temperature. If hardware limits are reached, it will automatically pause or halt training to prevent damage or crashes.
+
+---
+For more technical details on the TRMC design, see `research/trmc_design.md`.
