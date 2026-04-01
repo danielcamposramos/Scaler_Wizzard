@@ -102,6 +102,13 @@ This project uses Python and Node.js. You will need to have them installed on yo
     cd ..
     ```
 
+## Getting Started with TRMC
+
+The **Tiny Recursive MoE Contrastive (TRMC)** model is our flagship architecture for efficient, high-reasoning AI on consumer hardware.
+
+For a comprehensive guide on setting up your environment on **SparkyLinux** and training your first model, see:
+👉 **[Getting Started with TRMC](docs/getting_started_trmc.md)**
+
 ## Usage
 
 Scaler Wizard is a collection of components designed to be integrated into a larger model scaling workflow. Here are some of the key parts and how to use them:
