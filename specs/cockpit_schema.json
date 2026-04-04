@@ -1,28 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Scaler Wizard Cockpit Telemetry",
-  "description": "Canonical payload exchanged between backend telemetry stream and cockpit dashboard",
   "type": "object",
-  "required": [
-    "schemaVersion",
-    "runId",
-    "timestamp",
-    "phase",
-    "status",
-    "qualityMetrics",
-    "resourceUsage",
-    "humanContract",
-    "actions",
-    "alerts"
-  ],
+  "required": ["runId", "timestamp", "phase", "status", "qualityMetrics", "resourceUsage", "humanContract", "actions"],
   "properties": {
-    "schemaVersion": {
-      "type": "string",
-      "pattern": "^v[0-9]+\\.[0-9]+$"
-    },
     "runId": {
       "type": "string",
-      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+      "pattern": "^[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}$"
     },
     "timestamp": {
       "type": "string",
@@ -34,164 +18,52 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "initializing",
-        "running",
-        "paused",
-        "warning",
-        "stopped",
-        "completed",
-        "failed"
-      ]
-    },
-    "statusMessage": {
-      "type": "string"
+      "enum": ["initializing", "running", "paused", "warning", "stopped", "completed", "failed"]
     },
     "qualityMetrics": {
       "type": "object",
-      "required": ["perplexity", "accuracy", "trend"],
       "properties": {
-        "perplexity": {
-          "type": "number",
-          "minimum": 0
-        },
-        "accuracy": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "trend": {
-          "type": "string",
-          "enum": ["improving", "stable", "degrading"]
-        },
-        "window": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "notes": {
-          "type": "string"
-        }
+        "perplexity": { "type": "number", "minimum": 0 },
+        "perplexitySlope": { "type": "number" },
+        "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "emergentVibeScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "contextRetention": { "type": "number", "minimum": 0, "maximum": 1 },
+        "canonicalSentence": { "type": "string", "maxLength": 120 }
       }
     },
     "resourceUsage": {
       "type": "object",
-      "required": ["gpuMemoryGb", "cpuMemoryGb", "throughputTokensPerSec"],
       "properties": {
-        "gpuMemoryGb": {
-          "type": "number",
-          "minimum": 0
-        },
-        "cpuMemoryGb": {
-          "type": "number",
-          "minimum": 0
-        },
-        "throughputTokensPerSec": {
-          "type": "number",
-          "minimum": 0
-        },
-        "gpuCount": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "temperatureC": {
-          "type": "number"
-        }
+        "vramUsedGb": { "type": "number", "minimum": 0 },
+        "vramTotalGb": { "type": "number", "minimum": 0 },
+        "cpuUtilization": { "type": "number", "minimum": 0, "maximum": 100 },
+        "estimatedTimeLeftMin": { "type": "number", "minimum": 0 },
+        "hybridMode": { "type": "boolean" }
       }
     },
     "humanContract": {
       "type": "object",
-      "required": ["version", "authorizedBy", "signed", "signoff"],
       "properties": {
-        "version": {
-          "type": "string"
-        },
-        "authorizedBy": {
-          "type": "string"
-        },
-        "signed": {
-          "type": "boolean"
-        },
-        "signoff": {
-          "type": "string",
-          "enum": ["I accept responsibility for this run"]
-        },
-        "approvedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "rollbackPlan": {
-          "type": "string"
-        }
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
+        "guaranteesMet": { "type": "boolean" },
+        "responseWindowSec": { "type": "integer", "minimum": 30, "maximum": 600 }
       }
     },
     "actions": {
-      "type": "object",
-      "required": ["approve", "abort", "rollback"],
-      "properties": {
-        "approve": {
-          "type": "object",
-          "required": ["enabled"],
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "lastTriggeredAt": { "type": "string", "format": "date-time" }
-          }
-        },
-        "abort": {
-          "type": "object",
-          "required": ["enabled"],
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "lastTriggeredAt": { "type": "string", "format": "date-time" }
-          }
-        },
-        "rollback": {
-          "type": "object",
-          "required": ["enabled", "targetPhase", "checkpoint"],
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "targetPhase": { "type": "string" },
-            "checkpoint": { "type": "string" },
-            "lastTriggeredAt": { "type": "string", "format": "date-time" }
-          }
-        }
-      }
-    },
-    "alerts": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "modality", "severity", "message"],
-        "properties": {
-          "id": { "type": "string" },
-          "modality": {
-            "type": "string",
-            "enum": ["voice", "visual", "telegram"]
-          },
-          "severity": {
-            "type": "string",
-            "enum": ["info", "warning", "critical"]
-          },
-          "message": { "type": "string" },
-          "timestamp": { "type": "string", "format": "date-time" }
-        }
-      }
+      "items": { "type": "string", "enum": ["Approve", "Abort", "Rollback", "Pause", "Resume"] }
     },
-    "voice": {
+    "traceId": { "type": "string" },
+    "audit": {
       "type": "object",
       "properties": {
-        "language": { "type": "string" },
-        "persona": { "type": "string" },
-        "queueDepth": { "type": "integer", "minimum": 0 },
-        "speaking": { "type": "boolean" }
+        "partnerContributions": { "type": "array", "items": { "type": "string" } },
+        "lastModifiedBy": { "type": "string", "const": "Scaler_Wizzard_Swarm" }
       }
     },
-    "telemetry": {
-      "type": "object",
-      "properties": {
-        "metricsPath": { "type": "string" },
-        "telegramPath": { "type": "string" }
-      }
+    "userFeedback": {
+      "type": "string",
+      "maxLength": 500
     }
-  },
-  "additionalProperties": false
+  }
 }
