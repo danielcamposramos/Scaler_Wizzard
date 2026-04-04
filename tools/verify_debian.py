@@ -2,9 +2,11 @@ import shutil
 import os
 import sys
 import psutil
+import importlib.util
 
 def verify_debian_readiness():
     print("🚀 Verifying Scaler Wizard readiness for Debian...")
+    is_ready = True
     
     # 1. Check Python and OS
     if not sys.platform.startswith('linux'):
@@ -20,8 +22,8 @@ def verify_debian_readiness():
     # 3. Check Disk Space (Crucial for Wikipedia/Math datasets)
     total, used, free = shutil.disk_usage("/")
     free_gb = free / (1024**3)
-    if free_gb < 100:
-        print(f"⚠️ Disk space low: {free_gb:.1f}GB. Training 5 epochs on real-world data requires ~150GB for checkpoints.")
+    if free_gb < 150:
+        print(f"⚠️ Disk space low: {free_gb:.1f}GB. Training 50 epochs on ground-truth data requires ~200GB+ for reliable checkpoint history.")
     else:
         print(f"✅ Disk space looks good: {free_gb:.1f}GB free.")
 
@@ -32,18 +34,23 @@ def verify_debian_readiness():
     else:
         print(f"✅ RAM detected: {total_ram:.1f}GB.")
 
-    # 5. Check dependencies
-    try:
-        import datasets, transformers, peft, triton, torch
-        print("✅ Core AI Libraries (datasets, transformers, peft, triton) are installed.")
-        
-        try:
-            import unsloth
-            print("✅ Unsloth Speed-Training library detected.")
-        except ImportError:
-            print("⚠️ Unsloth not found. Speed training disabled. Install via: pip install unsloth")
-    except ImportError as e:
-        print(f"❌ Missing dependency: {e}. Please run 'pip install datasets transformers peft triton'")
+    # 5. Check dependencies without initializing them (prevents import order warnings)
+    deps = ['unsloth', 'torch', 'datasets', 'transformers', 'peft', 'triton', 'trl', 'flash_attn', 'ninja']
+    missing = []
+    for dep in deps:
+        if importlib.util.find_spec(dep) is None:
+            missing.append(dep)
+    
+    if missing:
+        print(f"❌ Missing dependencies: {', '.join(missing)}")
+        print(f"👉 Please run: pip install {' '.join(missing)}")
+        if 'flash_attn' in missing:
+            print("⚠️ Note: flash-attn installation can take 15-30 minutes as it compiles CUDA kernels from source.")
+        is_ready = False
+    else:
+        print(f"✅ All {len(deps)} core AI libraries are detected.")
+
+    return is_ready
 
 if __name__ == "__main__":
     verify_debian_readiness()

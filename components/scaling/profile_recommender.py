@@ -109,6 +109,15 @@ class ProfileRecommender:
         ram_total = 16.0
         ram_free = 8.0
 
+        # PRIMARY CHECK: Use Torch directly as it's the most reliable for AI workloads
+        try:
+            import torch
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                vram_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        except Exception:
+            pass
+
         try:
             import GPUtil  # type: ignore
 
@@ -172,7 +181,7 @@ class ProfileRecommender:
                 template["recommended_datasets"] = self._get_dataset_recommendations(use_case)
                 template["use_unsloth"] = self._check_unsloth_compatibility()
                 template["device"] = self._get_target_device()
-                template["epochs"] = 50 # Increased for pre-training, consider num_train_steps for very large runs
+                template["epochs"] = 20 # Optimized for deep reasoning saturation
                 return template
         # fallback to first available profile
         if self.profiles:
@@ -203,7 +212,7 @@ class ProfileRecommender:
         recommendations = {
             "long_context": [
                 {"path": "togethercomputer/LongAlpaca-12k", "weight": 0.7},
-                {"path": "wikipedia", "name": "20220301.en", "weight": 0.3}
+                {"path": "wikimedia/wikipedia", "name": "20231101.en", "weight": 0.3}
             ],
             "reasoning": [
                 {"path": "AI-MO/NuminaMath-CoT", "weight": 0.6},
@@ -214,14 +223,19 @@ class ProfileRecommender:
                 {"path": "HuggingFaceH4/ultrachat_200k", "weight": 0.5}
             ],
             "logic_games": [
-                {"path": "laion/pgn-chess-proft", "weight": 0.6},
+                {"path": "Daily-Chess/chess-pgn-dataset", "weight": 0.6},
                 {"path": "facebook/light_dialog", "weight": 0.4}
             ],
+            "game_architect": [
+                {"path": "/home/daniel/TRMC/platformer_axioms.jsonl", "weight": 0.5},
+                {"path": "mlabonne/FineTome-100k", "weight": 0.3},
+                {"path": "AI-MO/NuminaMath-CoT", "weight": 0.2}
+            ],
             "trmc_special": [ # This is the "all datasets in one go" scenario
-                {"path": "wikipedia", "name": "20220301.en", "weight": 0.2},
+                {"path": "wikimedia/wikipedia", "name": "20231101.en", "weight": 0.2},
                 {"path": "AI-MO/NuminaMath-CoT", "weight": 0.3},
                 {"path": "TIGER-Lab/MathInstruct", "weight": 0.2},
-                {"path": "laion/pgn-chess-proft", "weight": 0.1},
+                {"path": "Daily-Chess/chess-pgn-dataset", "weight": 0.1},
                 {"path": "facebook/light_dialog", "weight": 0.1}
                 # Note: For ground-up pre-training, consider larger, more generic text datasets.
                 # The 'contrastive' aspect of TRMC would require a custom loss or data collator.
