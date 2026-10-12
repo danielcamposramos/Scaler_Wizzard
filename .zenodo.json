@@ -1,0 +1,21 @@
+{
+  "title": "Scaler Wizard: accessible model scaling workflows for Transformer Lab",
+  "description": "Scaler Wizard is the implementation hub for Daniel Ramos' Multi-Vibe Code In Chain initiative to extend Transformer Lab with accessible model scaling workflows: LoRA adaptation, context extension with RoPE/NTK scaling, and knowledge distillation.",
+  "creators": [
+    {
+      "name": "Ramos, Daniel Campos",
+      "orcid": "0009-0001-4546-8673"
+    }
+  ],
+  "license": "apache-2.0",
+  "upload_type": "software",
+  "access_right": "open",
+  "keywords": [
+    "machine learning",
+    "LoRA",
+    "fine-tuning",
+    "context extension",
+    "knowledge distillation",
+    "Transformer Lab"
+  ]
+}
