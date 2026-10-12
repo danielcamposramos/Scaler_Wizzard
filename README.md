@@ -1,5 +1,7 @@
 # Scaler Wizard 🧙‍♂️ (Step 1 Complete)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23309004.svg)](https://doi.org/10.5281/zenodo.23309004)
+
 Scaler Wizard is the implementation hub for Daniel Ramos' Multi-Vibe Code In Chain initiative to extend TransformerLab with accessible model scaling workflows. It provides a suite of tools and components to enhance machine learning models through **parameter-efficient fine-tuning (LoRA)**, **context window extension**, and **knowledge distillation**, with a focus on safety, efficiency, and developer experience.
 
 ## What Scaler Wizard Does
